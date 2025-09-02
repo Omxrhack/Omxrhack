@@ -1,6 +1,5 @@
 ## Hi there 👋
 
-<!--
 💻 Me interesa especialmente:
 
 Desarrollo de software con Python, Swift y JavaScript
@@ -18,4 +17,7 @@ Petixfy 🐾 → Plataforma de recomendaciones personalizadas para productos de 
 📚 Siempre aprendiendo sobre nuevas tecnologías, optimización de procesos y buenas prácticas de desarrollo.
 
 🔗 Me gusta compartir, colaborar y aportar valor a la comunidad.
+
+<!--
+
 -->
