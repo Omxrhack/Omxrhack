@@ -1,7 +1,4 @@
-## Hi there 👋
-
-💻 Me interesa especialmente:
-
+## 💻 Me interesa especialmente:
 Desarrollo de software con Python, Swift y JavaScript
 Inteligencia Artificial aplicada en proyectos reales
 Redes y telecomunicaciones (configuración de topologías, protocolos de enrutamiento, DHCP, VLANs, etc.)
