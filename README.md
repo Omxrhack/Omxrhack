@@ -28,7 +28,6 @@ alias:       Omxrhack
 ubicación:   Culiacán, Sinaloa · México
 rol:         Mobile Developer · AI-First Builder
 enfoque:     apps que llegan a tiendas y se usan de verdad
-filosofía:   "una celda 1+1 (humano + IA) rinde como un equipo"
 ```
 
 - Desarrollo **apps iOS y Android** de punta a punta: código, CI, firma, metadata y publicación en **App Store Connect** y **Google Play Console**.
