@@ -161,11 +161,11 @@ Una muestra de lo que tengo abierto al público.
 
 <div align="center">
 
-<a href="https://anotta.com"><img src="https://img.shields.io/badge/Sitio_Web-2C5364?style=for-the-badge&logo=googlechrome&logoColor=white" /></a>
+<a href="https://anottancom"><img src="https://img.shields.io/badge/Sitio_Web-2C5364?style=for-the-badge&logo=googlechrome&logoColor=white" /></a>
 <a href="https://github.com/Omxrhack"><img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
 <!-- Cambia los enlaces de abajo por los tuyos -->
-<a href="https://linkedin.com/in/TU-USUARIO"><img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" /></a>
-<a href="mailto:TU-CORREO@dominio.com"><img src="https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" /></a>
+<a href="https://linkedin.com/in/omarbermejo"><img src="https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" /></a>
+<a href="mailto:bermejoosuna@gmail.com"><img src="https://img.shields.io/badge/Email-EA4335?style=for-the-badge&logo=gmail&logoColor=white" /></a>
 
 <br/><br/>
 
