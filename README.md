@@ -7,13 +7,13 @@
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0F2027,50:203A43,100:2C5364&height=200&section=header&text=Omar%20Bermejo%20Osuna&fontSize=42&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Mobile%20Developer%20%7C%20AI-First%20Builder&descSize=16&descAlignY=55" width="100%"/>
 
-<a href="https://anotta.com">
+<a href="https://anottan.com">
   <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=800&color=36BCF7&center=true&vCenter=true&width=600&lines=iOS+%26+Android+en+producci%C3%B3n;Swift+%C2%B7+Kotlin+%C2%B7+Flutter+%C2%B7+React+Native;Nativo+cuando+importa%2C+cross-platform+cuando+conviene;Construyo+con+IA%2C+no+solo+con+IA;Desde+Culiac%C3%A1n%2C+Sinaloa" alt="Typing SVG" />
 </a>
 
 <br/>
 
-<a href="https://anotta.com"><img src="https://img.shields.io/badge/anotta.com-2C5364?style=for-the-badge&logo=safari&logoColor=white" /></a>
+<a href="https://anottan.com"><img src="https://img.shields.io/badge/anotta.com-2C5364?style=for-the-badge&logo=safari&logoColor=white" /></a>
 <a href="https://github.com/Omxrhack?tab=repositories"><img src="https://img.shields.io/badge/@Omxrhack-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
 
 </div>
