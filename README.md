@@ -8,7 +8,7 @@
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0F2027,50:203A43,100:2C5364&height=200&section=header&text=Omar%20Bermejo%20Osuna&fontSize=42&fontColor=ffffff&animation=fadeIn&fontAlignY=35&desc=Mobile%20Developer%20%7C%20AI-First%20Builder&descSize=16&descAlignY=55" width="100%"/>
 
 <a href="https://anotta.com">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=800&color=36BCF7&center=true&vCenter=true&width=560&lines=iOS+%26+Android+en+producci%C3%B3n+%F0%9F%93%B1;Swift+%C2%B7+Kotlin+%C2%B7+Python+%C2%B7+TypeScript;Construyo+con+IA%2C+no+solo+con+IA;Desde+Culiac%C3%A1n%2C+Sinaloa+%F0%9F%87%B2%F0%9F%87%BD" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=800&color=36BCF7&center=true&vCenter=true&width=600&lines=iOS+%26+Android+en+producci%C3%B3n;Swift+%C2%B7+Kotlin+%C2%B7+Flutter+%C2%B7+React+Native;Nativo+cuando+importa%2C+cross-platform+cuando+conviene;Construyo+con+IA%2C+no+solo+con+IA;Desde+Culiac%C3%A1n%2C+Sinaloa" alt="Typing SVG" />
 </a>
 
 <br/>
@@ -21,70 +21,71 @@
 
 ---
 
-## 🧑‍💻 Sobre mí
+## Sobre mí
 
 ```yaml
 nombre:      Omar Bermejo Osuna
 alias:       Omxrhack
-ubicación:   Culiacán, Sinaloa · México 🇲🇽
+ubicación:   Culiacán, Sinaloa · México
 rol:         Mobile Developer · AI-First Builder
-enfoque:     apps nativas que llegan a tiendas y se usan de verdad
+enfoque:     apps que llegan a tiendas y se usan de verdad
 filosofía:   "una celda 1+1 (humano + IA) rinde como un equipo"
 ```
 
-- 📱 Desarrollo **apps iOS y Android** de punta a punta: código, CI, firma, metadata y publicación en **App Store Connect** y **Google Play Console**.
-- 🤖 Trabajo bajo una metodología propia **AI-First**: agentes, MCP y automatización dentro del ciclo de desarrollo, no como adorno.
-- 🌐 También me muevo en **redes y telecomunicaciones**: topologías, enrutamiento, VLANs, DHCP.
-- 🎨 Me obsesiona el detalle de **UI/UX** — que una app se sienta bien, no solo que funcione.
-- 🚀 Siempre aprendiendo: nuevas tecnologías, optimización de procesos y buenas prácticas.
+- Desarrollo **apps iOS y Android** de punta a punta: código, CI, firma, metadata y publicación en **App Store Connect** y **Google Play Console**.
+- Trabajo tanto **nativo** (Swift / Kotlin) como **cross-platform** (**Flutter** y **React Native**), según lo que pida el producto y no la moda.
+- Metodología propia **AI-First**: agentes, MCP y automatización dentro del ciclo de desarrollo, no como adorno.
+- También me muevo en **redes y telecomunicaciones**: topologías, enrutamiento, VLANs, DHCP.
+- Me obsesiona el detalle de **UI/UX** — que una app se sienta bien, no solo que funcione.
+- Siempre aprendiendo: nuevas tecnologías, optimización de procesos y buenas prácticas.
 
 <br/>
 
-## 🔨 En qué ando ahora
+## En qué ando ahora
 
 <table>
 <tr>
 <td width="50%" valign="top">
 
-### 🍽️ EasyOrder
+### EasyOrder
 Suite de **gestión para restaurantes** — app de administración en iOS y Android.
 Pedidos, menús, operación y suscripciones.
 
 `Swift` `Kotlin` `StoreKit` `CI/CD`
 
-**Estado:** en tiendas 🟢
+<img src="https://img.shields.io/badge/estado-en_tiendas-2EA043?style=flat-square" />
 
 </td>
 <td width="50%" valign="top">
 
-### 🐾 Petixfy
+### Petixfy
 Plataforma de **recomendaciones personalizadas** de productos para mascotas, potenciada con IA.
 
 `Python` `IA` `Recommender`
 
-**Estado:** en desarrollo 🟡
+<img src="https://img.shields.io/badge/estado-en_desarrollo-D29922?style=flat-square" />
 
 </td>
 </tr>
 <tr>
 <td width="50%" valign="top">
 
-### ⚙️ Motor IA-First
+### Motor IA-First
 Metodología de desarrollo en **celdas 1+1** (un humano, un agente), con escalera de autonomía y flujo de 6 pasos.
 
 `MCP` `Claude Code` `spec-kit` `Railway`
 
-**Estado:** iterando 🔵
+<img src="https://img.shields.io/badge/estado-iterando-36BCF7?style=flat-square" />
 
 </td>
 <td width="50%" valign="top">
 
-### 🌐 anotta
+### anotta
 Mi casa digital y base de proyectos.
 
 [`anotta.com`](https://anotta.com)
 
-**Estado:** siempre viva ⚪
+<img src="https://img.shields.io/badge/estado-activa-8B949E?style=flat-square" />
 
 </td>
 </tr>
@@ -92,12 +93,12 @@ Mi casa digital y base de proyectos.
 
 <br/>
 
-## 🛠️ Stack
+## Stack
 
 <div align="center">
 
 #### Móvil
-<img src="https://skillicons.dev/icons?i=swift,kotlin,androidstudio,figma&theme=dark" />
+<img src="https://skillicons.dev/icons?i=swift,kotlin,flutter,dart,react,androidstudio&theme=dark" />
 
 #### Lenguajes
 <img src="https://skillicons.dev/icons?i=python,js,ts,java,html,css&theme=dark" />
@@ -105,11 +106,14 @@ Mi casa digital y base de proyectos.
 #### Backend & Datos
 <img src="https://skillicons.dev/icons?i=nodejs,fastapi,postgres,mysql,firebase,redis&theme=dark" />
 
-#### DevOps & Herramientas
-<img src="https://skillicons.dev/icons?i=git,github,githubactions,docker,vscode,linux&theme=dark" />
+#### DevOps & Diseño
+<img src="https://skillicons.dev/icons?i=git,github,githubactions,docker,figma,linux&theme=dark" />
 
 <br/>
 
+<img src="https://img.shields.io/badge/React_Native-61DAFB?style=flat-square&logo=react&logoColor=000000" />
+<img src="https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white" />
+<img src="https://img.shields.io/badge/Expo-000020?style=flat-square&logo=expo&logoColor=white" />
 <img src="https://img.shields.io/badge/SwiftUI-0071E3?style=flat-square&logo=swift&logoColor=white" />
 <img src="https://img.shields.io/badge/Jetpack_Compose-3DDC84?style=flat-square&logo=android&logoColor=white" />
 <img src="https://img.shields.io/badge/Xcode-147EFB?style=flat-square&logo=xcode&logoColor=white" />
@@ -123,7 +127,7 @@ Mi casa digital y base de proyectos.
 
 <br/>
 
-## 📊 GitHub
+## GitHub
 
 <div align="center">
 
@@ -146,7 +150,7 @@ Mi casa digital y base de proyectos.
 
 <br/>
 
-## 🤝 Conectemos
+## Conectemos
 
 <div align="center">
 
