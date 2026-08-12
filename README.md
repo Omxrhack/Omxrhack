@@ -14,8 +14,7 @@
 <br/>
 
 <a href="https://anotta.com"><img src="https://img.shields.io/badge/anotta.com-2C5364?style=for-the-badge&logo=safari&logoColor=white" /></a>
-<a href="https://github.com/Omxrhack?tab=repositories"><img src="https://img.shields.io/badge/50+_Repos-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
-<img src="https://komarev.com/ghpvc/?username=Omxrhack&style=for-the-badge&color=36BCF7&label=VISITAS" />
+<a href="https://github.com/Omxrhack?tab=repositories"><img src="https://img.shields.io/badge/@Omxrhack-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
 
 </div>
 
@@ -35,9 +34,9 @@ filosofía:   "una celda 1+1 (humano + IA) rinde como un equipo"
 - Desarrollo **apps iOS y Android** de punta a punta: código, CI, firma, metadata y publicación en **App Store Connect** y **Google Play Console**.
 - Trabajo tanto **nativo** (Swift / Kotlin) como **cross-platform** (**Flutter** y **React Native**), según lo que pida el producto y no la moda.
 - Metodología propia **AI-First**: agentes, MCP y automatización dentro del ciclo de desarrollo, no como adorno.
+- Del lado web me muevo con **Next.js**, **Astro** y **TypeScript** — landings y backends que acompañan al producto móvil.
 - También me muevo en **redes y telecomunicaciones**: topologías, enrutamiento, VLANs, DHCP.
 - Me obsesiona el detalle de **UI/UX** — que una app se sienta bien, no solo que funcione.
-- Siempre aprendiendo: nuevas tecnologías, optimización de procesos y buenas prácticas.
 
 <br/>
 
@@ -61,7 +60,7 @@ Pedidos, menús, operación y suscripciones.
 ### Petixfy
 Plataforma de **recomendaciones personalizadas** de productos para mascotas, potenciada con IA.
 
-`Python` `IA` `Recommender`
+`Python` `Next.js` `IA`
 
 <img src="https://img.shields.io/badge/estado-en_desarrollo-D29922?style=flat-square" />
 
@@ -100,20 +99,16 @@ Mi casa digital y base de proyectos.
 #### Móvil
 <img src="https://skillicons.dev/icons?i=swift,kotlin,flutter,dart,react,androidstudio&theme=dark" />
 
-#### Lenguajes
-<img src="https://skillicons.dev/icons?i=python,js,ts,java,html,css&theme=dark" />
+#### Web
+<img src="https://skillicons.dev/icons?i=ts,js,nextjs,astro,tailwind,nodejs&theme=dark" />
 
-#### Backend & Datos
-<img src="https://skillicons.dev/icons?i=nodejs,fastapi,postgres,mysql,firebase,redis&theme=dark" />
-
-#### DevOps & Diseño
-<img src="https://skillicons.dev/icons?i=git,github,githubactions,docker,figma,linux&theme=dark" />
+#### Datos, DevOps & Diseño
+<img src="https://skillicons.dev/icons?i=python,postgres,firebase,git,githubactions,figma&theme=dark" />
 
 <br/>
 
 <img src="https://img.shields.io/badge/React_Native-61DAFB?style=flat-square&logo=react&logoColor=000000" />
 <img src="https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white" />
-<img src="https://img.shields.io/badge/Expo-000020?style=flat-square&logo=expo&logoColor=white" />
 <img src="https://img.shields.io/badge/SwiftUI-0071E3?style=flat-square&logo=swift&logoColor=white" />
 <img src="https://img.shields.io/badge/Jetpack_Compose-3DDC84?style=flat-square&logo=android&logoColor=white" />
 <img src="https://img.shields.io/badge/Xcode-147EFB?style=flat-square&logo=xcode&logoColor=white" />
@@ -127,24 +122,37 @@ Mi casa digital y base de proyectos.
 
 <br/>
 
-## GitHub
+## Repos públicos destacados
+
+Una muestra de lo que tengo abierto al público.
+
+| Proyecto | Qué es | Stack |
+|---|---|---|
+| [petixfy](https://github.com/Omxrhack/petixfy) · [backend](https://github.com/Omxrhack/petixfy-backend) · [web](https://github.com/Omxrhack/petixfy-nexts-js) | Recomendador de productos para mascotas con IA | `Python` `Next.js` `TypeScript` |
+| [cudmy](https://github.com/Omxrhack/cudmy) · [backend](https://github.com/Omxrhack/cudmy-backend) | Producto web full-stack | `TypeScript` |
+| [PelisAppFlutter](https://github.com/Omxrhack/PelisAppFlutter) | Catálogo de películas en Flutter | `Dart` `Flutter` |
+| [bimoora-coming-soon](https://github.com/Omxrhack/bimoora-coming-soon) | Landing de lanzamiento | `TypeScript` |
+| [keyjo_sushi_landing](https://github.com/Omxrhack/keyjo_sushi_landing) | Landing para restaurante de sushi | `Astro` `CSS` |
+| [landing-yock-v1](https://github.com/Omxrhack/landing-yock-v1) · [doplans](https://github.com/Omxrhack/landing-doplans) | Landings de producto | `Astro` `CSS` |
+| [links-media-omxrhack](https://github.com/Omxrhack/links-media-omxrhack) | Hub de enlaces personal | `JavaScript` |
 
 <div align="center">
 
-<img height="165" src="https://github-readme-stats.vercel.app/api?username=Omxrhack&show_icons=true&theme=tokyonight&hide_border=true&bg_color=0D1117&title_color=36BCF7&icon_color=36BCF7&include_all_commits=true&count_private=true" />
-<img height="165" src="https://github-readme-stats.vercel.app/api/top-langs/?username=Omxrhack&layout=compact&theme=tokyonight&hide_border=true&bg_color=0D1117&title_color=36BCF7&langs_count=8" />
+<img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Fusers%2FOmxrhack&query=%24.public_repos&style=for-the-badge&label=repos%20p%C3%BAblicos&color=36BCF7&logo=github&logoColor=white" />
+<img src="https://img.shields.io/github/followers/Omxrhack?style=for-the-badge&label=seguidores&color=181717&logo=github&logoColor=white" />
 
 <br/>
 
-<img src="https://streak-stats.demolab.com?user=Omxrhack&theme=tokyonight&hide_border=true&background=0D1117&ring=36BCF7&fire=36BCF7&currStreakLabel=36BCF7" />
+<b>Lenguajes que más aparecen en mi trabajo público</b>
 
-<br/>
-
-<img src="https://github-profile-trophy.vercel.app/?username=Omxrhack&theme=tokyonight&no-frame=true&no-bg=true&column=7&margin-w=8" />
-
-<br/>
-
-<img src="https://github-readme-activity-graph.vercel.app/graph?username=Omxrhack&theme=tokyo-night&hide_border=true&bg_color=0D1117&color=36BCF7&line=36BCF7&point=ffffff&area=true" width="95%" />
+<img src="https://img.shields.io/badge/Swift-F05138?style=flat-square&logo=swift&logoColor=white" />
+<img src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white" />
+<img src="https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white" />
+<img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black" />
+<img src="https://img.shields.io/badge/Astro-BC52EE?style=flat-square&logo=astro&logoColor=white" />
+<img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" />
+<img src="https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white" />
+<img src="https://img.shields.io/badge/C++-00599C?style=flat-square&logo=cplusplus&logoColor=white" />
 
 </div>
 
