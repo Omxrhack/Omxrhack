@@ -29,8 +29,13 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    defaults:
+      run:
+        shell: bash  # bash -eo pipefail: un fallo dentro de una tubería detiene el paso
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # el token solo se usa, explícito, en el paso de publicar
 
       - uses: actions/setup-node@v7
         with:
@@ -42,7 +47,13 @@ jobs:
 
       - name: Leer el estado actual de output
         id: lease
-        run: echo "sha=$(git ls-remote origin refs/heads/output | cut -f1)" >> "$GITHUB_OUTPUT"
+        run: |
+          # El repo es público: se lee sin credenciales. Si falla la red, se detiene aquí con un error claro
+          # (y no más adelante con un push rechazado sin explicación).
+          if ! refs=$(git ls-remote origin refs/heads/output); then
+            echo "::error::no se pudo leer la rama output"; exit 1
+          fi
+          echo "sha=$(printf '%s' "$refs" | cut -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Generar tabla de contribuciones y panel
         env:

@@ -12,6 +12,9 @@ export const DEFAULT_LANG_EXCLUDE = [
 /** En un repo de Flutter (Dart + CMake/C++), los runners nativos tampoco son trabajo propio. */
 const FLUTTER_SCAFFOLD = new Set(['Swift', 'Kotlin', 'Java', 'HTML', 'Objective-C', 'C', 'C++', 'CMake', 'Ruby']);
 const FALLBACK_LANG_COLOR = '#8B949E';
+/** Runners nativos que generan React Native / Expo (ios/ y android/). */
+const RN_NATIVE = new Set(['Swift', 'Kotlin', 'Java', 'Objective-C', 'Objective-C++', 'Ruby', 'C++', 'C', 'CMake', 'Starlark']);
+const safeColor = (color) => (typeof color === 'string' && /^#[0-9a-f]{3,8}$/i.test(color) ? color : FALLBACK_LANG_COLOR);
 
 // ——— Fechas: siempre como cadenas YYYY-MM-DD, aritmética con Date.UTC ———
 
@@ -23,6 +26,11 @@ export function todayIn(timeZone, now = new Date()) {
 export function addDays(iso, n) {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/** YYYY-MM-DD real (rechaza 2026-02-30, horas, zonas y basura). */
+export function isIsoDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && addDays(value, 0) === value;
 }
 
 export function weekdayOf(iso) {
@@ -41,7 +49,7 @@ export function normalizeDays(weeks, today) {
   const byDate = new Map();
   for (const week of weeks ?? []) {
     for (const day of week?.contributionDays ?? []) {
-      if (!day?.date) continue;
+      if (!isIsoDate(day?.date)) continue;
       const count = Number(day.contributionCount) || 0;
       const level = LEVELS[day.contributionLevel] ?? (count > 0 ? 1 : 0);
       const prev = byDate.get(day.date);
@@ -53,7 +61,8 @@ export function normalizeDays(weeks, today) {
   if (sorted.length === 0) return [];
 
   const days = [];
-  for (let date = sorted[0].date, i = 0; i < sorted.length; date = addDays(date, 1)) {
+  const last = sorted[sorted.length - 1].date;
+  for (let date = sorted[0].date, i = 0; i < sorted.length && date <= last; date = addDays(date, 1)) {
     if (sorted[i].date === date) {
       days.push({ ...sorted[i], weekday: weekdayOf(date) });
       i++;
@@ -134,11 +143,16 @@ export function aggregateLanguages(repos, { exclude = DEFAULT_LANG_EXCLUDE, top 
     if (seen.has(signature)) continue;
     seen.add(signature);
     const names = new Set(edges.map((e) => e.node.name));
-    const isFlutter = names.has('Dart') && (names.has('CMake') || names.has('C++'));
+    const repoBytes = edges.reduce((sum, e) => sum + Number(e.size), 0);
+    // Flutter: cualquier repo con Dart trae runners nativos generados (ios/, android/, desktop).
+    const isFlutter = names.has('Dart');
+    // React Native / Expo: JS/TS con un poco de nativo generado (menos del 15 % del repo).
+    const nativeBytes = edges.filter((e) => RN_NATIVE.has(e.node.name)).reduce((sum, e) => sum + Number(e.size), 0);
+    const isReactNative = (names.has('TypeScript') || names.has('JavaScript')) && nativeBytes > 0 && nativeBytes < repoBytes * 0.15;
     for (const e of edges) {
       const name = e.node.name;
-      if (excluded.has(name) || (isFlutter && FLUTTER_SCAFFOLD.has(name))) continue;
-      const prev = totals.get(name) ?? { name, color: e.node.color || FALLBACK_LANG_COLOR, bytes: 0 };
+      if (excluded.has(name) || (isFlutter && FLUTTER_SCAFFOLD.has(name)) || (isReactNative && RN_NATIVE.has(name))) continue;
+      const prev = totals.get(name) ?? { name, color: safeColor(e.node.color), bytes: 0 };
       prev.bytes += Number(e.size);
       totals.set(name, prev);
     }
@@ -170,7 +184,9 @@ export function validateRaw(raw) {
   const calendar = raw?.profile?.contributionsCollection?.contributionCalendar;
   if (!calendar) problems.push('falta contributionCalendar');
   else {
-    const days = calendar.weeks.flatMap((w) => w.contributionDays ?? []);
+    const days = (calendar.weeks ?? []).flatMap((w) => w?.contributionDays ?? []);
+    const badDates = days.filter((d) => !isIsoDate(d?.date)).length;
+    if (badDates) problems.push(`${badDates} días con fecha inválida`);
     if (days.length < 365 || days.length > 372) problems.push(`el calendario trae ${days.length} días (se esperaban 365–372)`);
     const sum = days.reduce((a, d) => a + (Number(d.contributionCount) || 0), 0);
     if (sum !== calendar.totalContributions) {
@@ -205,7 +221,7 @@ export function computeStats(raw, { today, langExclude } = {}) {
     weeks: toWeeks(days),
     firstDate: days[0]?.date ?? today,
     lastDate: days[days.length - 1]?.date ?? today,
-    windowDays: days.filter((d) => d.date <= today).length,
+    windowDays: days.length,
     activeDays,
     bestDay,
     byWeekday,
@@ -293,11 +309,13 @@ async function gqlOnce(query, variables, { token, fetchImpl, maxWaitMs }) {
   } catch {
     throw new RetryableError('respuesta que no es JSON');
   }
-  if (Array.isArray(body?.errors) && body.errors.length) {
-    const types = body.errors.map((e) => e?.type).filter(Boolean);
-    const message = body.errors.map((e) => e?.message).join(' | ');
-    if (types.includes('RATE_LIMITED') || res.headers.get('x-ratelimit-remaining') === '0') rateLimited(`límite de GraphQL: ${message}`);
+  const errors = body?.errors;
+  if (errors && (!Array.isArray(errors) || errors.length)) {
+    const list = Array.isArray(errors) ? errors : [errors];
+    const types = list.map((e) => e?.type).filter(Boolean);
+    const message = list.map((e) => e?.message ?? JSON.stringify(e)).join(' | ');
     if (types.some((t) => FATAL_TYPES.has(t))) throw new FatalError(`${types.join(',')}: ${message}`);
+    if (types.includes('RATE_LIMITED') || res.headers.get('x-ratelimit-remaining') === '0') rateLimited(`límite de GraphQL: ${message}`);
     if (/timeout|something went wrong/i.test(message)) throw new RetryableError(`GraphQL: ${message}`);
     throw new FatalError(`GraphQL: ${message}`);
   }
@@ -372,6 +390,7 @@ export async function fetchRaw(login, options) {
       repos.push(node);
     }
     if (!conn.pageInfo?.hasNextPage) break;
+    if (!conn.pageInfo.endCursor) throw new FatalError('hasNextPage sin endCursor: no se puede paginar');
     after = conn.pageInfo.endCursor;
   }
 

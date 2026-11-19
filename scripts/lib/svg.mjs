@@ -57,7 +57,9 @@ const XML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'"
 
 /** Escapa texto para meterlo en nodos o atributos XML. */
 export function escapeXml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
+  // Los caracteres de control no son válidos en XML 1.0: se quitan antes de escapar.
+  // eslint-disable-next-line no-control-regex
+  return String(value ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/[&<>"']/g, (c) => XML_ESCAPES[c]);
 }
 
 /** PRNG determinista (mulberry32). */

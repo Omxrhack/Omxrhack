@@ -26,7 +26,7 @@ export function fmtDate(iso) {
 const plural = (n, one, many) => `${fmtInt(n)} ${n === 1 ? one : many}`;
 
 function frame({ w, h, t, title, desc, css, body }) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-labelledby="title desc">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-labelledby="title desc">
 <title id="title">${escapeXml(title)}</title>
 <desc id="desc">${escapeXml(desc)}</desc>
 <style>
@@ -59,31 +59,75 @@ const ink = (themeName) => (themeName === 'dark' ? THEMES.dark.text : '#1F2330')
 
 /** Duración del recorrido de la araña: ~0.6 s por salto, entre 8 y 30 s. */
 export const trailSeconds = (points) => Math.min(30, Math.max(8, points * 0.6));
+/** Porcentaje del ciclo en que la araña llega al día más reciente (luego descansa). */
+const TRAIL_END = 88;
+
+/**
+ * Posición y orientación en cada esquina del hilo. La araña se dibuja mirando hacia -y,
+ * así que se le suma 90° al ángulo del segmento. Los ángulos se "desenrollan" para que
+ * cada giro tome el camino corto.
+ */
+export function walkFrames(points) {
+  const segments = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const [x0, y0] = points[i - 1];
+    const [x1, y1] = points[i];
+    const len = Math.hypot(x1 - x0, y1 - y0);
+    segments.push({ len, angle: (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI });
+    total += len;
+  }
+  if (segments.length === 0 || total === 0) return [];
+  let prev = segments[0].angle;
+  for (const seg of segments) {
+    while (seg.angle - prev > 180) seg.angle -= 360;
+    while (seg.angle - prev < -180) seg.angle += 360;
+    prev = seg.angle;
+  }
+  const frames = [];
+  let walked = 0;
+  segments.forEach((seg, i) => {
+    const start = (walked / total) * TRAIL_END;
+    walked += seg.len;
+    const end = (walked / total) * TRAIL_END;
+    // Al llegar a una esquina gira casi al instante (0.01 % del ciclo) y sigue.
+    frames.push({ pct: i === 0 ? 0 : start + 0.01, point: points[i], angle: seg.angle + 90 });
+    frames.push({ pct: end, point: points[i + 1], angle: seg.angle + 90 });
+  });
+  frames.push({ ...frames[frames.length - 1], pct: 100 });
+  return frames;
+}
+
+const fmtTransform = ({ point: [x, y], angle }) => `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${angle.toFixed(1)}deg)`;
 
 function trailCss(points) {
-  if (points < 2) return '';
-  const d = trailSeconds(points).toFixed(1);
-  // El hilo se teje al mismo ritmo que camina la araña (ambos lineales en longitud);
-  // al 88 % llega al día más reciente, descansa y vuelve a empezar.
+  if (points.length < 2) return '';
+  const frames = walkFrames(points);
+  if (frames.length === 0) return '';
+  const d = trailSeconds(points.length).toFixed(1);
+  const keyframes = frames.map((f) => `${f.pct.toFixed(3)}%{transform:${fmtTransform(f)}}`).join('');
+  // Todo es CSS (no SMIL), así que prefers-reduced-motion lo detiene: la araña se queda en el día más reciente.
+  // El hilo se teje al mismo ritmo que camina la araña (ambos lineales en longitud).
   return `.trail{stroke-dasharray:1 1;stroke-dashoffset:0;animation:trail ${d}s linear infinite}
-@keyframes trail{0%{stroke-dashoffset:1}88%,100%{stroke-dashoffset:0}}`;
+@keyframes trail{0%{stroke-dashoffset:1}${TRAIL_END}%,100%{stroke-dashoffset:0}}
+.walker{transform:${fmtTransform(frames[frames.length - 1])};animation:walk ${d}s linear infinite}
+@keyframes walk{${keyframes}}`;
 }
 
 /** Araña que recorre los días activos en orden, dejando un hilo. Sin días activos no hay araña. */
 function spiderTrail(points, t) {
   if (points.length === 0) return '';
   const body = spider({ body: t.red, detail: t.spiderDetail === t.red ? '#FFFFFF' : '#0A0A0F', scale: 0.4 });
-  if (points.length === 1) {
-    const [x, y] = points[0];
+  const frames = points.length > 1 ? walkFrames(points) : [];
+  if (frames.length === 0) {
+    const [x, y] = points[points.length - 1];
     return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">${body}</g>`;
   }
   const d = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
-  const dur = trailSeconds(points.length).toFixed(1);
-  return `<path id="trail" class="trail" pathLength="1" d="${d}" fill="none" stroke="${t.red}" stroke-opacity=".55" stroke-width="1.3" stroke-linejoin="round"/>
-<g>
-  <animateMotion dur="${dur}s" repeatCount="indefinite" rotate="auto" calcMode="linear" keyPoints="0;1;1" keyTimes="0;.88;1"><mpath xlink:href="#trail"/></animateMotion>
-  <g transform="rotate(90)">${body}</g>
-</g>`;
+  const rest = frames[frames.length - 1];
+  // El atributo transform es el respaldo para visores sin CSS: la araña descansa en el último día.
+  return `<path class="trail" pathLength="1" d="${d}" fill="none" stroke="${t.red}" stroke-opacity=".55" stroke-width="1.3" stroke-linejoin="round"/>
+<g class="walker" transform="translate(${rest.point[0].toFixed(1)} ${rest.point[1].toFixed(1)}) rotate(${rest.angle.toFixed(1)})">${body}</g>`;
 }
 
 /** Tabla de contribuciones al estilo GitHub, en paleta Spider-Man. */
@@ -173,7 +217,7 @@ ${legendCells}
     t,
     title: `${plural(stats.total, 'contribución', 'contribuciones')} de @${stats.login} en los últimos 12 meses`,
     desc: `Tabla de contribuciones en GitHub, día por día, del ${fmtDate(stats.firstDate)} al ${fmtDate(stats.lastDate)}, con una araña que recorre los días activos tejiendo su hilo. Días activos: ${stats.activeDays}. Racha más larga: ${stats.longestStreak}${stats.longestOpen ? '+' : ''} días.`,
-    css: trailCss(trailPoints.length),
+    css: trailCss(trailPoints),
     body,
   });
 }

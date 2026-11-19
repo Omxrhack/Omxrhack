@@ -12,13 +12,14 @@ import {
   computeStreaks,
   fetchRaw,
   gql,
+  isIsoDate,
   normalizeDays,
   toWeeks,
   todayIn,
   validateRaw,
   weekdayOf,
 } from './lib/data.mjs';
-import { fmtDate, renderCalendar, renderSense } from './lib/render.mjs';
+import { fmtDate, renderCalendar, renderSense, walkFrames } from './lib/render.mjs';
 
 // ——— Utilidades ———
 
@@ -373,22 +374,113 @@ test('fetchRaw falla claro si el usuario no existe', async () => {
 test('la araña recorre los días activos: sin días no hay araña, con uno se queda quieta', () => {
   const at = (counts) => renderCalendar(computeStats(rawData({ counts }), { today: '2026-11-19' }), 'dark');
   const none = at(Array(369).fill(0));
-  assert.doesNotMatch(none, /animateMotion|id="trail"/);
+  assert.doesNotMatch(none, /class="walker"|class="trail"/);
 
   const one = Array(369).fill(0);
   one[100] = 2;
   const single = at(one);
   assertCleanSvg(single);
-  assert.doesNotMatch(single, /animateMotion/);
+  assert.doesNotMatch(single, /class="walker"|@keyframes walk/);
   assert.match(single, /<ellipse/); // la araña está, sin moverse
 
   const many = Array(369).fill(0);
   [3, 50, 51, 200, 368].forEach((i) => (many[i] = 1));
   const walk = at(many);
   assertCleanSvg(walk);
-  assert.match(walk, /<animateMotion [^>]*keyPoints="0;1;1"/);
-  assert.match(walk, /<mpath xlink:href="#trail"\/>/);
-  assert.match(walk, /xmlns:xlink="http:\/\/www\.w3\.org\/1999\/xlink"/);
-  const d = walk.match(/id="trail" class="trail" pathLength="1" d="([^"]+)"/)[1];
+  const d = walk.match(/class="trail" pathLength="1" d="([^"]+)"/)[1];
   assert.equal((d.match(/[ML]/g) ?? []).length, 5, 'un punto por día activo, en orden');
+  assert.match(walk, /@keyframes walk\{0\.000%\{transform:translate\(/);
+  assert.match(walk, /100\.000%\{transform:/);
+});
+
+test('la araña es CSS puro: reduced motion la detiene y sin CSS descansa en el último día', () => {
+  const many = Array(369).fill(0);
+  [3, 50, 368].forEach((i) => (many[i] = 1));
+  const svg = renderCalendar(computeStats(rawData({ counts: many }), { today: '2026-11-19' }), 'light');
+  assert.doesNotMatch(svg, /<animate|<set |<mpath/, 'nada de SMIL: prefers-reduced-motion no lo detendría');
+  assert.match(svg, /@media \(prefers-reduced-motion:reduce\)\{\*\{animation:none!important\}\}/);
+  const d = svg.match(/class="trail" pathLength="1" d="([^"]+)"/)[1];
+  const [lastX, lastY] = d.split(/[ML]/).filter(Boolean).at(-1).split(' ');
+  const attr = svg.match(/<g class="walker" transform="translate\(([\d.]+) ([\d.]+)\) rotate\(/);
+  assert.deepEqual([attr[1], attr[2]], [lastX, lastY], 'respaldo sin CSS: en el día más reciente');
+  assert.match(svg, new RegExp(`\\.walker\\{transform:translate\\(${lastX}px,${lastY}px\\)`), 'reposo con CSS sin animación');
+});
+
+test('walkFrames: velocidad constante, giros por el camino corto y fin al 88 %', () => {
+  const frames = walkFrames([[0, 0], [10, 0], [10, 10], [0, 10]]);
+  assert.equal(frames[0].pct, 0);
+  assert.equal(frames.at(-1).pct, 100);
+  const arrivals = frames.filter((_, i) => i % 2 === 1 && i < frames.length - 1).map((f) => Math.round(f.pct * 100) / 100);
+  assert.deepEqual(arrivals, [29.33, 58.67, 88]); // tres tramos iguales
+  const angles = frames.map((f) => f.angle);
+  for (let i = 1; i < angles.length; i++) assert.ok(Math.abs(angles[i] - angles[i - 1]) <= 180, 'giro por el camino corto');
+  assert.deepEqual(walkFrames([[5, 5]]), []);
+});
+
+// ——— Hallazgos de la verificación adversarial ———
+
+test('una fecha malformada no cuelga el cálculo y validateRaw la rechaza', () => {
+  const weeks = [{ contributionDays: [
+    { date: '2026-02-27', contributionCount: 1, contributionLevel: 'FIRST_QUARTILE' },
+    { date: '2026-02-30', contributionCount: 1, contributionLevel: 'FIRST_QUARTILE' },
+    { date: '2026-03-01T00:00:00Z', contributionCount: 1, contributionLevel: 'FIRST_QUARTILE' },
+    { date: '2026-03-02', contributionCount: 1, contributionLevel: 'FIRST_QUARTILE' },
+  ] }];
+  const days = normalizeDays(weeks, '2026-11-19');
+  assert.deepEqual(days.map((d) => d.date), ['2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02']);
+  assert.equal(isIsoDate('2026-02-30'), false);
+  assert.equal(isIsoDate('2028-02-29'), true);
+  const raw = rawData();
+  raw.profile.contributionsCollection.contributionCalendar.weeks[3].contributionDays[0].date = '2026-02-30';
+  assert.throws(() => validateRaw(raw), /fecha inválida/);
+});
+
+test('"días activos" nunca supera los días de la ventana (aunque haya un día futuro con contribuciones)', () => {
+  const raw = rawData({ end: '2026-11-20', counts: Array(370).fill(1) }); // termina "mañana" en Culiacán
+  const stats = computeStats(raw, { today: '2026-11-19' });
+  assert.ok(stats.activeDays <= stats.windowDays, `${stats.activeDays} de ${stats.windowDays}`);
+});
+
+test('NOT_FOUND es fatal aunque llegue junto con un límite de uso', async () => {
+  const { impl, calls } = fakeFetch([{
+    headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': String(Math.floor(Date.now() / 1000) + 5) },
+    body: { data: { user: null }, errors: [{ type: 'NOT_FOUND', message: 'Could not resolve to a User' }] },
+  }]);
+  await assert.rejects(gql('q', {}, opts(impl)), FatalError);
+  assert.equal(calls.length, 1);
+});
+
+test('errors que no es arreglo también es error, y paginar sin cursor falla al primer intento', async () => {
+  const objectErrors = fakeFetch([{ body: { data: { ok: 1 }, errors: { message: 'raro' } } }]);
+  await assert.rejects(gql('q', {}, opts(objectErrors.impl)), FatalError);
+
+  const profile = { data: { user: { login: 'x', followers: { totalCount: 0 }, contributionsCollection: { contributionCalendar: { totalContributions: 0, weeks: [] } } } } };
+  const noCursor = { data: { user: { repositories: { totalCount: 200, pageInfo: { hasNextPage: true, endCursor: null }, nodes: [] } } } };
+  const { impl, calls } = fakeFetch([{ body: profile }, { body: noCursor }]);
+  await assert.rejects(fetchRaw('x', opts(impl)), /endCursor/);
+  assert.equal(calls.length, 2);
+});
+
+test('Flutter solo-móvil y React Native no inflan Swift/Kotlin; Swift nativo sí cuenta', () => {
+  const langs = aggregateLanguages([
+    repo('flutter-mobile', [['Dart', 600], ['Swift', 200], ['Kotlin', 90], ['HTML', 30]]),
+    repo('rn-app', [['TypeScript', 9000], ['Swift', 300], ['Kotlin', 200], ['Ruby', 80]]),
+    repo('ios-native', [['Swift', 500], ['JavaScript', 20]]),
+  ]);
+  assert.deepEqual(langs.map((l) => [l.name, l.bytes]), [['TypeScript', 9000], ['Dart', 600], ['Swift', 500], ['JavaScript', 20]]);
+});
+
+test('colores de lenguaje inválidos no se cuelan como atributos', () => {
+  const [lang] = aggregateLanguages([repo('x', [['Evil', 10, '#f00" onload="alert(1)']])]);
+  assert.equal(lang.color, '#8B949E');
+  const stats = computeStats(rawData({ repos: [repo('x', [['Evil', 10, '#f00" onload="alert(1)']])] }), { today: '2026-11-19' });
+  assert.doesNotMatch(renderSense(stats, 'dark'), /onload/);
+});
+
+test('caracteres de control en nombres no rompen el XML', () => {
+  const stats = computeStats(rawData({ repos: [repo('x', [['Raro\u0001\u001F', 10]])] }), { today: '2026-11-19' });
+  const svg = renderSense(stats, 'light');
+  assertCleanSvg(svg);
+  assert.doesNotMatch(svg, /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/);
+  assert.match(svg, />Raro</);
 });
