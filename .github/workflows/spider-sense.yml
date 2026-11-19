@@ -1,0 +1,94 @@
+# Spider-Sense: genera la tabla de contribuciones (con la araña que la recorre) y el panel de stats,
+# y los publica en la rama huérfana `output` (el README los lee desde raw.githubusercontent).
+# Si algo falla, no se publica nada y se quedan los últimos SVG buenos.
+
+name: Spider-Sense
+
+on:
+  schedule:
+    - cron: "17 7 * * *"   # 00:17 en Culiacán
+    - cron: "17 19 * * *"  # 12:17 en Culiacán
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/spider-sense.yml"
+      - "scripts/**"
+
+permissions: {}
+
+# Una sola corrida a la vez; la pendiente más nueva reemplaza a la anterior.
+concurrency:
+  group: spider-sense
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Tests
+        run: node --test scripts/spider-sense.test.mjs
+
+      - name: Leer el estado actual de output
+        id: lease
+        run: echo "sha=$(git ls-remote origin refs/heads/output | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generar tabla de contribuciones y panel
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USER: ${{ github.repository_owner }}
+          OUT_DIR: dist
+          SPIDER_TZ: America/Mazatlan
+        run: node scripts/spider-sense.mjs
+
+      - name: Verificar que están los 4 archivos
+        run: |
+          for f in spider-calendar-dark spider-calendar-light spider-sense-dark spider-sense-light; do
+            test -s "dist/$f.svg" || { echo "::error::falta dist/$f.svg"; exit 1; }
+          done
+
+      - name: Publicar en la rama output
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LEASE: ${{ steps.lease.outputs.sha }}
+        run: |
+          # Si los scripts cambiaron en main desde este commit (p. ej. al re-ejecutar una corrida vieja),
+          # no se publica: el push de esos cambios ya disparó una corrida con el código nuevo.
+          git fetch -q --depth=1 origin main
+          if ! git diff --quiet "$GITHUB_SHA" FETCH_HEAD -- scripts .github/workflows/spider-sense.yml; then
+            echo "::notice::main tiene scripts más nuevos que $GITHUB_SHA; no se publica esta corrida."
+            exit 0
+          fi
+          cd dist
+          git init -q -b output
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Spider-Sense $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q --force-with-lease="output:${LEASE}" \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:output
+
+  # GitHub apaga los cron de repos públicos tras 60 días sin actividad.
+  # Re-habilitar el workflow en cada corrida programada lo mantiene vivo sin commits de relleno.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Mantener vivo el cron
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/spider-sense.yml/enable"
