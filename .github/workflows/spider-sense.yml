@@ -1,8 +1,9 @@
-# Spider-Sense: genera la tabla de contribuciones (con la araña que la recorre) y el panel de stats,
-# y los publica en la rama huérfana `output` (el README los lee desde raw.githubusercontent).
+# Genera la tabla de contribuciones y el panel de actividad del perfil, y los publica en la rama
+# huérfana `output` (el README los lee desde raw.githubusercontent).
 # Si algo falla, no se publica nada y se quedan los últimos SVG buenos.
+# Los nombres de archivo (spider-*.svg) se conservan porque el README apunta a ellos.
 
-name: Spider-Sense
+name: Actividad del perfil
 
 on:
   schedule:
@@ -86,7 +87,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -q -m "Spider-Sense $(date -u +%Y-%m-%dT%H:%MZ)"
+          git commit -q -m "Actividad $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q --force-with-lease="output:${LEASE}" \
             "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:output
 

@@ -1,4 +1,4 @@
-// Datos para Spider-Sense: consulta a la API GraphQL de GitHub y cálculo de stats.
+// Datos para las tarjetas de actividad del perfil: consulta a la API GraphQL de GitHub y cálculo de stats.
 // Todo lo que no es red es puro y se prueba en scripts/spider-sense.test.mjs.
 
 export const DEFAULT_TZ = 'America/Mazatlan'; // Culiacán, UTC-7 todo el año
@@ -276,7 +276,7 @@ async function gqlOnce(query, variables, { token, fetchImpl, maxWaitMs }) {
       headers: {
         authorization: `bearer ${token}`,
         'content-type': 'application/json',
-        'user-agent': 'spider-sense-profile-readme',
+        'user-agent': 'profile-readme-activity',
       },
       body: JSON.stringify({ query, variables }),
       signal: AbortSignal.timeout(25_000),

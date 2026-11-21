@@ -1,18 +1,22 @@
-// Render de las tarjetas generadas a diario: calendario de contribuciones y panel Spider-Sense.
+// Render de las tarjetas generadas a diario: calendario de contribuciones y panel de actividad.
 // Funciones puras: reciben las stats ya calculadas (ver data.mjs) y devuelven el SVG como string.
+// Diseño estático (sin animaciones) y con la paleta de GitHub, para que se lea igual en cualquier visor.
 
-import { FONT_MONO, FONT_SANS, THEMES, escapeXml, spider, webGroup } from './svg.mjs';
+import { FONT_SANS, THEMES, escapeXml } from './svg.mjs';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 /** Índice 0 = domingo, igual que `weekday` de la API de GitHub. */
 export const WEEKDAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const WEEKDAYS_LONG = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
-/** Niveles 0–4 del calendario (0 = sin contribuciones). Mismos colores que la telaraña animada. */
+/** Niveles 0–4 del calendario (0 = sin contribuciones), en la escala de azules de GitHub. */
 export const LEVEL_COLORS = {
-  dark: ['#1A1B26', '#4A0D14', '#8B1520', '#C61F2C', '#FF4A4F'],
-  light: ['#EBEDF0', '#F8C9CD', '#EE8790', '#DB3542', '#A50F1C'],
+  dark: ['#161B22', '#0C2D6B', '#1158C7', '#388BFD', '#79C0FF'],
+  light: ['#EFF2F5', '#B6E3FF', '#54AEFF', '#0969DA', '#0A3069'],
 };
+
+const PAD = 32;
+const W = 1200;
 
 const fmtInt = (n) => Math.round(n).toLocaleString('es-MX');
 
@@ -24,127 +28,39 @@ export function fmtDate(iso) {
 }
 
 const plural = (n, one, many) => `${fmtInt(n)} ${n === 1 ? one : many}`;
+/** "10 días", "1 día", "369+ días" (una racha abierta puede ser más larga). */
+const streakText = (n, open) => `${fmtInt(n)}${open ? '+' : ''} ${n === 1 && !open ? 'día' : 'días'}`;
+/** "lunes", "lunes y jueves", "lunes, martes y jueves". */
+const listJoin = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`);
+/** Recorta nombres largos para que no invadan la columna vecina. */
+const clip = (s, max) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s);
+const LANG_NAME_MAX = 20;
 
-function frame({ w, h, t, title, desc, css, body }) {
+function frame({ w, h, t, title, desc, body }) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-labelledby="title desc">
 <title id="title">${escapeXml(title)}</title>
 <desc id="desc">${escapeXml(desc)}</desc>
-<style>
-.in{animation:in .7s cubic-bezier(.2,.7,.2,1) both}
-@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.cell{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.2,.7,.2,1) both}
-@keyframes pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
-.pulse{transform-box:fill-box;transform-origin:center;animation:pulse 2.4s ease-out infinite}
-@keyframes pulse{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(2.6)}}
-.grow{transform-box:fill-box;transform-origin:left center;animation:grow 1.2s cubic-bezier(.2,.7,.2,1) both}
-@keyframes grow{from{transform:scaleX(0)}to{transform:none}}
-.web-in{transform-box:fill-box;transform-origin:center;animation:webin 1.4s cubic-bezier(.2,.7,.2,1) both}
-@keyframes webin{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:none}}
-.strand{stroke-dasharray:1 1;animation:draw 2.4s cubic-bezier(.4,0,.2,1) both}
-@keyframes draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-${css ?? ''}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
-</style>
-<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="14" fill="${t.card}" stroke="${t.cardBorder}"/>
-${webGroup(
-  { cx: w, cy: 0, startDeg: 90, endDeg: 180, spokes: 7, rings: 5, radius: 150, seed: 17 },
-  { stroke: t.red, opacity: 0.18, width: 1, delay: 0.2 },
-)}
+<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="6" fill="${t.card}" stroke="${t.border}"/>
 ${body}
 </svg>
 `;
 }
 
-const ink = (themeName) => (themeName === 'dark' ? THEMES.dark.text : '#1F2330');
+const label = (x, y, text, t, attrs = '') =>
+  `<text x="${x}" y="${y}" font-family="${FONT_SANS}" font-size="13" font-weight="600" fill="${t.muted}"${attrs}>${escapeXml(text)}</text>`;
 
-/** Duración del recorrido de la araña: ~0.6 s por salto, entre 8 y 30 s. */
-export const trailSeconds = (points) => Math.min(30, Math.max(8, points * 0.6));
-/** Porcentaje del ciclo en que la araña llega al día más reciente (luego descansa). */
-const TRAIL_END = 88;
-
-/**
- * Posición y orientación en cada esquina del hilo. La araña se dibuja mirando hacia -y,
- * así que se le suma 90° al ángulo del segmento. Los ángulos se "desenrollan" para que
- * cada giro tome el camino corto.
- */
-export function walkFrames(points) {
-  const segments = [];
-  let total = 0;
-  for (let i = 1; i < points.length; i++) {
-    const [x0, y0] = points[i - 1];
-    const [x1, y1] = points[i];
-    const len = Math.hypot(x1 - x0, y1 - y0);
-    segments.push({ len, angle: (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI });
-    total += len;
-  }
-  if (segments.length === 0 || total === 0) return [];
-  let prev = segments[0].angle;
-  for (const seg of segments) {
-    while (seg.angle - prev > 180) seg.angle -= 360;
-    while (seg.angle - prev < -180) seg.angle += 360;
-    prev = seg.angle;
-  }
-  const frames = [];
-  let walked = 0;
-  segments.forEach((seg, i) => {
-    const start = (walked / total) * TRAIL_END;
-    walked += seg.len;
-    const end = (walked / total) * TRAIL_END;
-    // Al llegar a una esquina gira casi al instante (0.01 % del ciclo) y sigue.
-    frames.push({ pct: i === 0 ? 0 : start + 0.01, point: points[i], angle: seg.angle + 90 });
-    frames.push({ pct: end, point: points[i + 1], angle: seg.angle + 90 });
-  });
-  frames.push({ ...frames[frames.length - 1], pct: 100 });
-  return frames;
-}
-
-const fmtTransform = ({ point: [x, y], angle }) => `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) rotate(${angle.toFixed(1)}deg)`;
-
-function trailCss(points) {
-  if (points.length < 2) return '';
-  const frames = walkFrames(points);
-  if (frames.length === 0) return '';
-  const d = trailSeconds(points.length).toFixed(1);
-  const keyframes = frames.map((f) => `${f.pct.toFixed(3)}%{transform:${fmtTransform(f)}}`).join('');
-  // Todo es CSS (no SMIL), así que prefers-reduced-motion lo detiene: la araña se queda en el día más reciente.
-  // El hilo se teje al mismo ritmo que camina la araña (ambos lineales en longitud).
-  return `.trail{stroke-dasharray:1 1;stroke-dashoffset:0;animation:trail ${d}s linear infinite}
-@keyframes trail{0%{stroke-dashoffset:1}${TRAIL_END}%,100%{stroke-dashoffset:0}}
-.walker{transform:${fmtTransform(frames[frames.length - 1])};animation:walk ${d}s linear infinite}
-@keyframes walk{${keyframes}}`;
-}
-
-/** Araña que recorre los días activos en orden, dejando un hilo. Sin días activos no hay araña. */
-function spiderTrail(points, t) {
-  if (points.length === 0) return '';
-  const body = spider({ body: t.red, detail: t.spiderDetail === t.red ? '#FFFFFF' : '#0A0A0F', scale: 0.4 });
-  const frames = points.length > 1 ? walkFrames(points) : [];
-  if (frames.length === 0) {
-    const [x, y] = points[points.length - 1];
-    return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">${body}</g>`;
-  }
-  const d = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join('');
-  const rest = frames[frames.length - 1];
-  // El atributo transform es el respaldo para visores sin CSS: la araña descansa en el último día.
-  return `<path class="trail" pathLength="1" d="${d}" fill="none" stroke="${t.red}" stroke-opacity=".55" stroke-width="1.3" stroke-linejoin="round"/>
-<g class="walker" transform="translate(${rest.point[0].toFixed(1)} ${rest.point[1].toFixed(1)}) rotate(${rest.angle.toFixed(1)})">${body}</g>`;
-}
-
-/** Tabla de contribuciones al estilo GitHub, en paleta Spider-Man. */
+/** Tabla de contribuciones al estilo GitHub. */
 export function renderCalendar(stats, themeName) {
   const t = THEMES[themeName];
   const colors = LEVEL_COLORS[themeName];
-  const text = ink(themeName);
-  const W = 1200;
   const left = 64;
   const top = 92;
   const step = 20.4;
   const size = 15.6;
   const weeks = stats.weeks;
-  const H = top + 7 * step + 64;
+  const H = Math.round(top + 7 * step + 64);
 
   let cells = '';
-  const trailPoints = [];
   let monthLabels = '';
   let lastMonth = -1;
   weeks.forEach((week, col) => {
@@ -155,28 +71,26 @@ export function renderCalendar(stats, themeName) {
       // Etiqueta de mes en la primera columna donde aparece ese mes (y no pegada al borde derecho).
       if (month !== lastMonth && col < weeks.length - 2) {
         if (lastMonth !== -1 || Number(firstDay.date.slice(8, 10)) <= 7) {
-          monthLabels += `<text x="${x.toFixed(1)}" y="${top - 12}" font-family="${FONT_SANS}" font-size="13" fill="${t.muted}">${MONTHS[month]}</text>`;
+          monthLabels += `<text x="${x.toFixed(1)}" y="${top - 12}" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">${MONTHS[month]}</text>`;
         }
         lastMonth = month;
       }
     }
     for (const day of week) {
       const y = top + day.weekday * step;
-      const delay = (col * 0.018 + day.weekday * 0.01).toFixed(2);
       const tip = `${plural(day.count, 'contribución', 'contribuciones')} · ${fmtDate(day.date)}`;
-      cells += `<rect class="cell" style="animation-delay:${delay}s" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${size}" height="${size}" rx="3.5" fill="${colors[day.level]}"><title>${escapeXml(tip)}</title></rect>`;
-      if (day.count > 0) trailPoints.push([x + size / 2, y + size / 2]);
+      cells += `<rect class="cell" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${size}" height="${size}" rx="3" fill="${colors[day.level]}"><title>${escapeXml(tip)}</title></rect>`;
     }
   });
 
-  // Último día ("hoy" según GitHub): anillo que late.
+  // Último día ("hoy" según GitHub): contorno discreto.
   const lastWeek = weeks[weeks.length - 1] ?? [];
   const today = lastWeek[lastWeek.length - 1];
   let todayMark = '';
   if (today) {
     const x = left + (weeks.length - 1) * step;
     const y = top + today.weekday * step;
-    todayMark = `<rect class="pulse" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${size}" height="${size}" rx="3.5" fill="none" stroke="${t.red}" stroke-width="1.6"/>`;
+    todayMark = `<rect class="today" x="${(x - 1.5).toFixed(1)}" y="${(y - 1.5).toFixed(1)}" width="${size + 3}" height="${size + 3}" rx="4" fill="none" stroke="${t.muted}" stroke-width="1.2"/>`;
   }
 
   const dayLabels = [1, 3, 5]
@@ -191,92 +105,67 @@ export function renderCalendar(stats, themeName) {
   const legendCells = colors
     .map(
       (c, i) =>
-        `<rect x="${(legendRight - 40 - (4 - i) * step - size).toFixed(1)}" y="${legendY}" width="${size}" height="${size}" rx="3.5" fill="${c}"/>`,
+        `<rect x="${(legendRight - 40 - (4 - i) * step - size).toFixed(1)}" y="${legendY.toFixed(1)}" width="${size}" height="${size}" rx="3" fill="${c}"/>`,
     )
     .join('');
 
-  const headline = `${fmtInt(stats.total)}`;
+  const footer = [
+    `Actualizado el ${fmtDate(stats.today)}`,
+    plural(stats.activeDays, 'día activo', 'días activos'),
+    ...(stats.bestDay.count > 0 ? [`mejor día: ${plural(stats.bestDay.count, 'contribución', 'contribuciones')}`] : []),
+  ].join('  ·  ');
+
   const body = `
-<g class="in">
-  <text x="${left - 34}" y="50" font-family="${FONT_SANS}" font-size="28" font-weight="800" fill="${t.red}">${escapeXml(headline)}<tspan fill="${text}" font-weight="700" dx="10">${stats.total === 1 ? 'contribución' : 'contribuciones'} en los últimos 12 meses</tspan></text>
-  <text x="${W - 36}" y="48" text-anchor="end" font-family="${FONT_MONO}" font-size="13" letter-spacing="1.5" fill="${t.muted}">SPIDER-SENSE · @${escapeXml(stats.login)}</text>
-</g>
+<text x="${PAD}" y="50" font-family="${FONT_SANS}" font-size="18" font-weight="600" fill="${t.text}">${escapeXml(fmtInt(stats.total))} ${stats.total === 1 ? 'contribución' : 'contribuciones'} en los últimos 12 meses</text>
+<text x="${legendRight.toFixed(1)}" y="50" text-anchor="end" font-family="${FONT_SANS}" font-size="13" fill="${t.muted}">@${escapeXml(stats.login)}</text>
 ${monthLabels}
 ${dayLabels}
 <g>${cells}</g>
 ${todayMark}
-${spiderTrail(trailPoints, t)}
-<text x="${left - 34}" y="${legendY + 12}" font-family="${FONT_MONO}" font-size="12" fill="${t.faint}">actualizado ${escapeXml(fmtDate(stats.today))} · días activos: ${fmtInt(stats.activeDays)} · mejor día: ${fmtInt(stats.bestDay.count)}</text>
-<text x="${(legendRight - 40 - 4 * step - size - 10).toFixed(1)}" y="${legendY + 12}" text-anchor="end" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">Menos</text>
+<text x="${PAD}" y="${(legendY + 12).toFixed(1)}" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">${escapeXml(footer)}</text>
+<text x="${(legendRight - 40 - 4 * step - size - 10).toFixed(1)}" y="${(legendY + 12).toFixed(1)}" text-anchor="end" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">Menos</text>
 ${legendCells}
-<text x="${(legendRight - 30).toFixed(1)}" y="${legendY + 12}" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">Más</text>`;
+<text x="${(legendRight - 30).toFixed(1)}" y="${(legendY + 12).toFixed(1)}" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">Más</text>`;
 
   return frame({
     w: W,
-    h: Math.round(H),
+    h: H,
     t,
     title: `${plural(stats.total, 'contribución', 'contribuciones')} de @${stats.login} en los últimos 12 meses`,
-    desc: `Tabla de contribuciones en GitHub, día por día, del ${fmtDate(stats.firstDate)} al ${fmtDate(stats.lastDate)}, con una araña que recorre los días activos tejiendo su hilo. Días activos: ${stats.activeDays}. Racha más larga: ${stats.longestStreak}${stats.longestOpen ? '+' : ''} días.`,
-    css: trailCss(trailPoints),
+    desc: `Tabla de contribuciones en GitHub, día por día, del ${fmtDate(stats.firstDate)} al ${fmtDate(stats.lastDate)}. Días activos: ${fmtInt(stats.activeDays)}. Racha más larga: ${streakText(stats.longestStreak, stats.longestOpen)}.`,
     body,
   });
 }
 
-/** Radar de 7 hilos (uno por día de la semana) dibujado como telaraña. */
-function weekdayWeb({ cx, cy, r, values, t, text }) {
-  // Orden de lunes a domingo, empezando arriba y en sentido horario.
+/** Barras de contribuciones por día de la semana, de lunes a domingo. Resalta el día más activo. */
+function weekdayBars({ x0, baseY, maxH, values, topDays, t }) {
   const order = [1, 2, 3, 4, 5, 6, 0];
+  const barW = 28;
+  const gap = 14;
   const max = Math.max(...values, 0);
-  const angle = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / order.length;
-  const pt = (radius, i) => [cx + radius * Math.cos(angle(i)), cy + radius * Math.sin(angle(i))];
-  const fmt = ([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`;
-
-  let grid = '';
-  for (const k of [0.25, 0.5, 0.75, 1]) {
-    // Anillos con una ligera caída hacia el centro, como hilo real.
-    let d = '';
-    order.forEach((_, i) => {
-      const a = pt(r * k, i);
-      const b = pt(r * k, (i + 1) % order.length);
-      const mid = pt(r * k * 0.86, i + 0.5);
-      d += `${i === 0 ? `M${fmt(a)}` : ''}Q${fmt(mid)} ${fmt(b)}`;
-    });
-    grid += `<path class="strand" pathLength="1" d="${d}"/>`;
-  }
-  const spokes = order.map((_, i) => `<path class="strand" pathLength="1" d="M${cx} ${cy}L${fmt(pt(r, i))}"/>`).join('');
-
-  const shape = order
-    .map((wd, i) => pt(max > 0 ? Math.max(r * 0.08, (r * values[wd]) / max) : r * 0.08, i))
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${fmt(p)}`)
-    .join('');
-  const dots = order
+  return order
     .map((wd, i) => {
-      const p = pt(max > 0 ? Math.max(r * 0.08, (r * values[wd]) / max) : r * 0.08, i);
-      return `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="${t.red}"/>`;
+      const x = x0 + i * (barW + gap);
+      const v = values[wd];
+      // Sin contribuciones no hay barra (y no se divide entre cero); con alguna, al menos 2 px para que se vea.
+      const h = max > 0 && v > 0 ? Math.max(2, (maxH * v) / max) : 0;
+      const bar =
+        h > 0
+          ? `<rect class="bar" x="${x}" y="${(baseY - h).toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" rx="${Math.min(3, h / 2).toFixed(1)}" fill="${t.accent}" fill-opacity="${topDays.includes(wd) ? 1 : 0.45}"/>`
+          : '';
+      return `<rect x="${x}" y="${baseY - maxH}" width="${barW}" height="${maxH}" rx="3" fill="${t.track}"/>${bar}<text x="${x + barW / 2}" y="${baseY + 20}" text-anchor="middle" font-family="${FONT_SANS}" font-size="12" fill="${t.muted}">${WEEKDAYS[wd]}</text>`;
     })
-    .join('');
-  const labels = order
-    .map((wd, i) => {
-      const [x, y] = pt(r + 18, i);
-      return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" font-family="${FONT_SANS}" font-size="12" font-weight="600" fill="${t.muted}">${WEEKDAYS[wd]}</text>`;
-    })
-    .join('');
-
-  return `<g fill="none" stroke="${text}" stroke-opacity=".16" stroke-width="1">${grid}${spokes}</g>
-<g class="web-in" style="animation-delay:.5s"><path d="${shape}Z" fill="${t.red}" fill-opacity=".28" stroke="${t.red}" stroke-width="2" stroke-linejoin="round"/>${dots}</g>
-${labels}`;
+    .join('\n');
 }
 
-/** Panel Spider-Sense: números clave, telaraña semanal y lenguajes. */
+/** Panel de actividad: números clave, contribuciones por día de la semana y lenguajes. */
 export function renderSense(stats, themeName) {
   const t = THEMES[themeName];
-  const text = ink(themeName);
-  const W = 1200;
-  const H = 440;
+  const H = 400;
 
   const tiles = [
     { value: fmtInt(stats.total), label: 'Contribuciones', caption: 'últimos 12 meses' },
-    { value: fmtInt(stats.activeDays), label: 'Días activos', caption: `de ${fmtInt(stats.windowDays)} en la ventana` },
+    { value: fmtInt(stats.activeDays), label: 'Días activos', caption: `de ${plural(stats.windowDays, 'día', 'días')}` },
     {
       value: `${fmtInt(stats.longestStreak)}${stats.longestOpen ? '+' : ''}`,
       label: 'Racha más larga',
@@ -287,93 +176,95 @@ export function renderSense(stats, themeName) {
     },
     { value: fmtInt(stats.repoCount), label: 'Repos públicos', caption: 'propios, sin forks' },
   ];
-  const tileW = 266;
-  const gap = 18;
+  const colW = (W - 2 * PAD) / tiles.length;
   const tileSvg = tiles
     .map((tile, i) => {
-      const x = 40 + i * (tileW + gap);
-      return `<g class="in" style="animation-delay:${(0.15 + i * 0.12).toFixed(2)}s">
-  <rect x="${x}" y="78" width="${tileW}" height="112" rx="12" fill="${t.track}"/>
-  <rect x="${x}" y="78" width="4" height="112" rx="2" fill="${i % 2 === 0 ? t.red : t.blue}"/>
-  <text x="${x + 24}" y="128" font-family="${FONT_SANS}" font-size="40" font-weight="800" fill="${text}">${escapeXml(tile.value)}</text>
-  <text x="${x + 24}" y="154" font-family="${FONT_SANS}" font-size="15" font-weight="700" fill="${text}">${escapeXml(tile.label)}</text>
-  <text x="${x + 24}" y="176" font-family="${FONT_SANS}" font-size="13" fill="${t.muted}">${escapeXml(tile.caption)}</text>
-</g>`;
+      const x = PAD + i * colW + (i === 0 ? 0 : 24);
+      const sep = i === 0 ? '' : `<line x1="${PAD + i * colW}" y1="96" x2="${PAD + i * colW}" y2="180" stroke="${t.border}"/>`;
+      return `${sep}<text x="${x}" y="130" font-family="${FONT_SANS}" font-size="34" font-weight="700" fill="${t.text}">${escapeXml(tile.value)}</text>
+<text x="${x}" y="156" font-family="${FONT_SANS}" font-size="14" font-weight="600" fill="${t.text}">${escapeXml(tile.label)}</text>
+<text x="${x}" y="176" font-family="${FONT_SANS}" font-size="13" fill="${t.muted}">${escapeXml(tile.caption)}</text>`;
     })
     .join('\n');
 
-  // Telaraña semanal.
+  // Día de la semana.
   const wd = stats.byWeekday;
   const totalWd = wd.reduce((a, b) => a + b, 0);
-  const topDay = totalWd > 0 ? wd.indexOf(Math.max(...wd)) : -1;
-  const webSummary =
-    topDay >= 0
+  const maxWd = Math.max(...wd);
+  // Todos los días empatados en el máximo, de lunes a domingo (el orden de las barras).
+  const topDays = totalWd > 0 ? [1, 2, 3, 4, 5, 6, 0].filter((d) => wd[d] === maxWd) : [];
+  const pct = totalWd > 0 ? Math.round((maxWd / totalWd) * 100) : 0;
+  const topLine =
+    topDays.length === 1
+      ? [`Día más activo: ${WEEKDAYS_LONG[topDays[0]]}`, `${pct}% de las contribuciones`]
+      : topDays.length === 2
+        ? [`Días más activos: ${listJoin(topDays.map((d) => WEEKDAYS_LONG[d]))}`, `${pct}% de las contribuciones cada uno`]
+        : topDays.length === 7
+          ? ['Actividad pareja toda la semana', `${pct}% de las contribuciones cada día`]
+          : // Con 3 a 6 empatados la lista no cabe junto a las barras; las barras resaltadas dicen cuáles son.
+            [`Empate entre ${topDays.length} días`, `${pct}% de las contribuciones cada uno`];
+  const summary =
+    topDays.length > 0
       ? [
-          `Día más activo: ${WEEKDAYS_LONG[topDay]}`,
-          `${Math.round((wd[topDay] / totalWd) * 100)}% de las contribuciones`,
+          ...topLine,
           `Mejor día: ${plural(stats.bestDay.count, 'contribución', 'contribuciones')}`,
           `el ${fmtDate(stats.bestDay.date)}`,
         ]
       : ['Sin contribuciones públicas', 'en los últimos 12 meses'];
-  const summarySvg = webSummary
+  const summarySvg = summary
     .map(
       (line, i) =>
-        `<text x="300" y="${282 + i * 24 + (i >= 2 ? 10 : 0)}" font-family="${FONT_SANS}" font-size="${i % 2 === 0 ? 16 : 14}" font-weight="${i % 2 === 0 ? 700 : 400}" fill="${i % 2 === 0 ? text : t.muted}">${escapeXml(line)}</text>`,
+        `<text x="344" y="${282 + i * 22 + (i >= 2 ? 14 : 0)}" font-family="${FONT_SANS}" font-size="${i % 2 === 0 ? 15 : 13}" font-weight="${i % 2 === 0 ? 600 : 400}" fill="${i % 2 === 0 ? t.text : t.muted}">${escapeXml(line)}</text>`,
     )
-    .join('');
+    .join('\n');
 
   // Lenguajes.
   const langX = 640;
-  const langW = 520;
+  const langW = W - PAD - langX;
   let langSvg = '';
   if (stats.languages.length === 0) {
-    langSvg = `<text x="${langX}" y="300" font-family="${FONT_SANS}" font-size="14" fill="${t.muted}">Sin datos de lenguajes todavía.</text>`;
+    langSvg = `<text x="${langX}" y="282" font-family="${FONT_SANS}" font-size="14" fill="${t.muted}">Sin datos de lenguajes todavía.</text>`;
   } else {
     let x = langX;
     const segs = stats.languages
-      .map((l, i) => {
+      .map((l) => {
         const w = Math.max(0, (langW * l.pct) / 100);
-        const seg = `<rect class="grow" style="animation-delay:${(0.4 + i * 0.1).toFixed(2)}s" x="${x.toFixed(1)}" y="262" width="${w.toFixed(1)}" height="14" fill="${l.color}"/>`;
+        const seg = `<rect x="${x.toFixed(1)}" y="262" width="${w.toFixed(1)}" height="10" fill="${l.color}"/>`;
         x += w;
         return seg;
       })
       .join('');
     const legend = stats.languages
       .map((l, i) => {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const lx = langX + col * 270;
-        const ly = 312 + row * 30;
-        return `<g class="in" style="animation-delay:${(0.6 + i * 0.08).toFixed(2)}s"><circle cx="${lx + 6}" cy="${ly - 5}" r="6" fill="${l.color}"/><text x="${lx + 20}" y="${ly}" font-family="${FONT_SANS}" font-size="14" font-weight="600" fill="${text}">${escapeXml(l.name)}<tspan fill="${t.muted}" font-weight="400" dx="8">${l.pct.toFixed(1)}%</tspan></text></g>`;
+        const lx = langX + (i % 2) * 264;
+        const ly = 306 + Math.floor(i / 2) * 30;
+        return `<circle cx="${lx + 5}" cy="${ly - 5}" r="5" fill="${l.color}"/><text x="${lx + 18}" y="${ly}" font-family="${FONT_SANS}" font-size="14" font-weight="600" fill="${t.text}">${escapeXml(clip(l.name, LANG_NAME_MAX))}<tspan fill="${t.muted}" font-weight="400" dx="8">${l.pct.toFixed(1)}%</tspan></text>`;
       })
-      .join('');
-    langSvg = `<clipPath id="bar"><rect x="${langX}" y="262" width="${langW}" height="14" rx="7"/></clipPath>
-<rect x="${langX}" y="262" width="${langW}" height="14" rx="7" fill="${t.track}"/>
+      .join('\n');
+    langSvg = `<clipPath id="bar"><rect x="${langX}" y="262" width="${langW}" height="10" rx="5"/></clipPath>
+<rect x="${langX}" y="262" width="${langW}" height="10" rx="5" fill="${t.track}"/>
 <g clip-path="url(#bar)">${segs}</g>
 ${legend}`;
   }
 
   const body = `
-<g class="in">
-  <text x="40" y="50" font-family="${FONT_SANS}" font-size="22" font-weight="800" letter-spacing="1" fill="${t.red}">SPIDER-SENSE<tspan fill="${t.muted}" font-family="${FONT_MONO}" font-size="14" font-weight="400" letter-spacing="0" dx="12">// actividad pública en GitHub</tspan></text>
-  <circle cx="${W - 250}" cy="44" r="5" fill="${t.red}"/>
-  <circle class="pulse" cx="${W - 250}" cy="44" r="5" fill="${t.red}"/>
-  <text x="${W - 40}" y="49" text-anchor="end" font-family="${FONT_MONO}" font-size="13" fill="${t.muted}">sentido arácnido activo</text>
-</g>
+<text x="${PAD}" y="50" font-family="${FONT_SANS}" font-size="18" font-weight="600" fill="${t.text}">Actividad pública en GitHub</text>
+<text x="${W - PAD}" y="50" text-anchor="end" font-family="${FONT_SANS}" font-size="13" fill="${t.muted}">@${escapeXml(stats.login)}  ·  actualizado el ${escapeXml(fmtDate(stats.today))}</text>
+<line x1="${PAD}" y1="72" x2="${W - PAD}" y2="72" stroke="${t.border}"/>
 ${tileSvg}
-<text x="40" y="232" font-family="${FONT_MONO}" font-size="12" letter-spacing="2" fill="${t.muted}">TELARAÑA SEMANAL</text>
-${weekdayWeb({ cx: 150, cy: 340, r: 66, values: wd, t, text })}
-<g class="in" style="animation-delay:.7s">${summarySvg}</g>
-<text x="${langX}" y="232" font-family="${FONT_MONO}" font-size="12" letter-spacing="2" fill="${t.muted}">LENGUAJES · REPOS PÚBLICOS</text>
-${langSvg}
-<text x="${W - 36}" y="${H - 18}" text-anchor="end" font-family="${FONT_MONO}" font-size="11" fill="${t.faint}">actualizado ${escapeXml(fmtDate(stats.today))}</text>`;
+<line x1="${PAD}" y1="204" x2="${W - PAD}" y2="204" stroke="${t.border}"/>
+${label(PAD, 238, 'Contribuciones por día de la semana', t)}
+${weekdayBars({ x0: PAD, baseY: 352, maxH: 84, values: wd, topDays, t })}
+${summarySvg}
+${label(langX, 238, 'Lenguajes en repos públicos', t)}
+${langSvg}`;
 
   return frame({
     w: W,
     h: H,
     t,
-    title: `Spider-Sense de @${stats.login}: actividad pública en GitHub`,
-    desc: `${plural(stats.total, 'contribución', 'contribuciones')} en 12 meses, ${stats.activeDays} días activos, racha más larga de ${stats.longestStreak}${stats.longestOpen ? '+' : ''} días, ${stats.repoCount} repos públicos. Lenguajes: ${stats.languages.map((l) => `${l.name} ${l.pct.toFixed(1)}%`).join(', ') || 'sin datos'}.`,
+    title: `Actividad pública de @${stats.login} en GitHub`,
+    desc: `${plural(stats.total, 'contribución', 'contribuciones')} en 12 meses, ${plural(stats.activeDays, 'día activo', 'días activos')}, racha más larga de ${streakText(stats.longestStreak, stats.longestOpen)}, ${plural(stats.repoCount, 'repo público', 'repos públicos')}. Lenguajes: ${stats.languages.map((l) => `${l.name} ${l.pct.toFixed(1)}%`).join(', ') || 'sin datos'}.`,
     body,
   });
 }

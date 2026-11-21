@@ -1,4 +1,4 @@
-// Tests de Spider-Sense: node --test scripts/spider-sense.test.mjs
+// Tests del generador de actividad del perfil: node --test scripts/spider-sense.test.mjs
 // Cubren los casos borde mapeados antes de escribir el generador, no solo el camino feliz.
 
 import assert from 'node:assert/strict';
@@ -19,7 +19,7 @@ import {
   validateRaw,
   weekdayOf,
 } from './lib/data.mjs';
-import { fmtDate, renderCalendar, renderSense, walkFrames } from './lib/render.mjs';
+import { WEEKDAYS, fmtDate, renderCalendar, renderSense } from './lib/render.mjs';
 
 // ——— Utilidades ———
 
@@ -276,8 +276,13 @@ test('el calendario dibuja una celda por día y marca el último día', () => {
   const cal = renderCalendar(stats, 'light');
   assertCleanSvg(cal);
   assert.equal((cal.match(/class="cell"/g) ?? []).length, 369);
-  assert.equal((cal.match(/class="pulse"/g) ?? []).length, 1);
-  assert.match(cal, /actualizado 19 nov 2026/);
+  assert.equal((cal.match(/class="today"/g) ?? []).length, 1);
+  assert.match(cal, /Actualizado el 19 nov 2026/);
+  // La marca de "hoy" cae sobre la última celda (columna y fila del último día).
+  const lastCell = [...cal.matchAll(/<rect class="cell" x="([\d.]+)" y="([\d.]+)"/g)].at(-1);
+  const mark = cal.match(/<rect class="today" x="([\d.]+)" y="([\d.]+)"/);
+  assert.equal(Number(mark[1]), Math.round((Number(lastCell[1]) - 1.5) * 10) / 10);
+  assert.equal(Number(mark[2]), Math.round((Number(lastCell[2]) - 1.5) * 10) / 10);
 });
 
 // ——— Red: errores, reintentos y paginación ———
@@ -371,50 +376,140 @@ test('fetchRaw falla claro si el usuario no existe', async () => {
   await assert.rejects(fetchRaw('nadie', opts(impl)), /no existe/);
 });
 
-test('la araña recorre los días activos: sin días no hay araña, con uno se queda quieta', () => {
-  const at = (counts) => renderCalendar(computeStats(rawData({ counts }), { today: '2026-11-19' }), 'dark');
-  const none = at(Array(369).fill(0));
-  assert.doesNotMatch(none, /class="walker"|class="trail"/);
+const statsFor = (counts, repos = []) => computeStats(rawData({ counts, repos }), { today: '2026-11-19' });
 
+test('las tarjetas son estáticas y no quedan restos del tema anterior', () => {
   const one = Array(369).fill(0);
   one[100] = 2;
-  const single = at(one);
-  assertCleanSvg(single);
-  assert.doesNotMatch(single, /class="walker"|@keyframes walk/);
-  assert.match(single, /<ellipse/); // la araña está, sin moverse
-
   const many = Array(369).fill(0);
   [3, 50, 51, 200, 368].forEach((i) => (many[i] = 1));
-  const walk = at(many);
-  assertCleanSvg(walk);
-  const d = walk.match(/class="trail" pathLength="1" d="([^"]+)"/)[1];
-  assert.equal((d.match(/[ML]/g) ?? []).length, 5, 'un punto por día activo, en orden');
-  assert.match(walk, /@keyframes walk\{0\.000%\{transform:translate\(/);
-  assert.match(walk, /100\.000%\{transform:/);
+  for (const counts of [Array(369).fill(0), one, many]) {
+    const stats = statsFor(counts, [repo('a', [['Swift', 10]])]);
+    for (const theme of ['dark', 'light']) {
+      for (const svg of [renderCalendar(stats, theme), renderSense(stats, theme)]) {
+        assertCleanSvg(svg);
+        assert.doesNotMatch(svg, /<animate|<set |<mpath|@keyframes|animation:|<style/, 'sin animaciones');
+        assert.doesNotMatch(svg, /araña|telaraña|spider|sentido arácnido/i);
+        assert.doesNotMatch(svg, /<ellipse|class="(walker|trail|pulse)"/);
+      }
+    }
+  }
 });
 
-test('la araña es CSS puro: reduced motion la detiene y sin CSS descansa en el último día', () => {
-  const many = Array(369).fill(0);
-  [3, 50, 368].forEach((i) => (many[i] = 1));
-  const svg = renderCalendar(computeStats(rawData({ counts: many }), { today: '2026-11-19' }), 'light');
-  assert.doesNotMatch(svg, /<animate|<set |<mpath/, 'nada de SMIL: prefers-reduced-motion no lo detendría');
-  assert.match(svg, /@media \(prefers-reduced-motion:reduce\)\{\*\{animation:none!important\}\}/);
-  const d = svg.match(/class="trail" pathLength="1" d="([^"]+)"/)[1];
-  const [lastX, lastY] = d.split(/[ML]/).filter(Boolean).at(-1).split(' ');
-  const attr = svg.match(/<g class="walker" transform="translate\(([\d.]+) ([\d.]+)\) rotate\(/);
-  assert.deepEqual([attr[1], attr[2]], [lastX, lastY], 'respaldo sin CSS: en el día más reciente');
-  assert.match(svg, new RegExp(`\\.walker\\{transform:translate\\(${lastX}px,${lastY}px\\)`), 'reposo con CSS sin animación');
+test('las barras por día de la semana van de lunes a domingo, son proporcionales y resaltan el día más activo', () => {
+  const start = addDays('2026-11-19', -368);
+  // Martes: 4 por día; miércoles: 1 por día; el resto, nada.
+  const counts = Array.from({ length: 369 }, (_, i) => ({ 2: 4, 3: 1 })[weekdayOf(addDays(start, i))] ?? 0);
+  const stats = statsFor(counts);
+  const svg = renderSense(stats, 'light');
+  assertCleanSvg(svg);
+
+  const labels = [...svg.matchAll(/>(Dom|Lun|Mar|Mié|Jue|Vie|Sáb)</g)].map((m) => m[1]);
+  assert.deepEqual(labels, [...WEEKDAYS.slice(1), WEEKDAYS[0]]);
+
+  const bars = [...svg.matchAll(/<rect class="bar" x="[\d.]+" y="([\d.]+)" width="28" height="([\d.]+)" rx="[\d.]+" fill="[^"]+" fill-opacity="([\d.]+)"/g)];
+  assert.equal(bars.length, 2, 'sin contribuciones no hay barra');
+  const [tue, wed] = bars.map((m) => ({ y: Number(m[1]), h: Number(m[2]), opacity: Number(m[3]) }));
+  assert.equal(tue.h, 84);
+  assert.equal(tue.opacity, 1, 'el día más activo va resaltado');
+  assert.equal(wed.opacity, 0.45);
+  const expected = (84 * stats.byWeekday[3]) / stats.byWeekday[2];
+  assert.ok(Math.abs(wed.h - expected) < 0.1, `${wed.h} ≈ ${expected}`);
+  assert.equal(tue.y + tue.h, wed.y + wed.h, 'misma línea base');
+  assert.match(svg, /Día más activo: martes/);
+  assert.match(svg, /\d+% de las contribuciones/);
 });
 
-test('walkFrames: velocidad constante, giros por el camino corto y fin al 88 %', () => {
-  const frames = walkFrames([[0, 0], [10, 0], [10, 10], [0, 10]]);
-  assert.equal(frames[0].pct, 0);
-  assert.equal(frames.at(-1).pct, 100);
-  const arrivals = frames.filter((_, i) => i % 2 === 1 && i < frames.length - 1).map((f) => Math.round(f.pct * 100) / 100);
-  assert.deepEqual(arrivals, [29.33, 58.67, 88]); // tres tramos iguales
-  const angles = frames.map((f) => f.angle);
-  for (let i = 1; i < angles.length; i++) assert.ok(Math.abs(angles[i] - angles[i - 1]) <= 180, 'giro por el camino corto');
-  assert.deepEqual(walkFrames([[5, 5]]), []);
+test('una barra con muy pocas contribuciones sigue siendo visible', () => {
+  const start = addDays('2026-11-19', -368);
+  const counts = Array.from({ length: 369 }, (_, i) => (weekdayOf(addDays(start, i)) === 1 ? 1000 : 0));
+  counts[counts.findIndex((_, i) => weekdayOf(addDays(start, i)) === 5)] = 1; // un solo viernes con 1
+  const bars = [...renderSense(statsFor(counts), 'dark').matchAll(/<rect class="bar" [^>]*height="([\d.]+)"/g)].map((m) => Number(m[1]));
+  assert.equal(bars.length, 2);
+  assert.ok(Math.min(...bars) >= 2, 'al menos 2 px');
+});
+
+test('singular y plural en los textos, y sin "mejor día" cuando no hubo contribuciones', () => {
+  const one = Array(369).fill(0);
+  one[368] = 1;
+  const cal = renderCalendar(statsFor(one), 'dark');
+  assert.match(cal, />1 contribución en los últimos 12 meses</);
+  assert.match(cal, /1 día activo  ·  mejor día: 1 contribución</);
+
+  const empty = renderCalendar(statsFor(Array(369).fill(0)), 'light');
+  assert.match(empty, />0 contribuciones en los últimos 12 meses</);
+  assert.match(empty, /0 días activos</);
+  assert.doesNotMatch(empty, /mejor día/);
+});
+
+const barsOf = (svg) =>
+  [...svg.matchAll(/<rect class="bar" [^>]*height="([\d.]+)"[^>]*fill-opacity="([\d.]+)"/g)].map((m) => ({ h: Number(m[1]), opacity: Number(m[2]) }));
+/** 369 días que terminan el 19 nov 2026, con `perWeekday[wd]` contribuciones cada día de ese día de la semana. */
+const byWeekdayCounts = (perWeekday) => {
+  const start = addDays('2026-11-19', -368);
+  return Array.from({ length: 369 }, (_, i) => perWeekday[weekdayOf(addDays(start, i))] ?? 0);
+};
+
+test('empates en el día más activo: se resaltan todos y el texto no miente ni se desborda', () => {
+  // Lunes y jueves empatan exactamente (mismo número de lunes y jueves en la ventana).
+  const counts = byWeekdayCounts({ 1: 3, 4: 3, 5: 1 });
+  const stats = statsFor(counts);
+  assert.equal(stats.byWeekday[1], stats.byWeekday[4], 'el fixture debe empatar');
+  const two = renderSense(stats, 'dark');
+  assert.deepEqual(barsOf(two).map((b) => b.opacity), [1, 1, 0.45]);
+  assert.match(two, />Días más activos: lunes y jueves</);
+  assert.match(two, /% de las contribuciones cada uno</);
+
+  // En la ventana hay 53 de domingo a jueves y 52 viernes y sábados.
+  const three = renderSense(statsFor(byWeekdayCounts({ 1: 2, 2: 2, 3: 2 })), 'dark');
+  assert.match(three, />Empate entre 3 días</);
+  assert.deepEqual(barsOf(three).map((b) => b.opacity), [1, 1, 1]);
+
+  const even = statsFor(byWeekdayCounts({ 0: 52, 1: 52, 2: 52, 3: 52, 4: 52, 5: 53, 6: 53 }));
+  assert.equal(new Set(even.byWeekday).size, 1, 'el fixture debe empatar los 7 días');
+  const evenSvg = renderSense(even, 'light');
+  assert.equal(barsOf(evenSvg).filter((b) => b.opacity === 1 && b.h === 84).length, 7);
+  assert.match(evenSvg, />Actividad pareja toda la semana</);
+  assert.match(evenSvg, />14% de las contribuciones cada día</);
+});
+
+test('el porcentaje del día más activo es el real', () => {
+  const stats = statsFor(byWeekdayCounts({ 2: 3, 3: 1 }));
+  const total = stats.byWeekday.reduce((a, b) => a + b, 0);
+  const pct = Math.round((stats.byWeekday[2] / total) * 100);
+  assert.match(renderSense(stats, 'dark'), new RegExp(`>${pct}% de las contribuciones<`));
+});
+
+test('nombres de lenguaje largos se recortan y la leyenda cabe en el panel', () => {
+  const langs = [
+    ['Common Workflow Language', 600],
+    ['Jupyter Notebook', 500],
+    ['TypeScript', 400],
+    ['JavaScript', 300],
+    ['Swift', 200],
+    ['Kotlin', 100],
+    ['Ruby', 50],
+  ];
+  const stats = statsFor(Array(369).fill(0), [repo('a', langs)]);
+  assert.equal(stats.languages.length, 6, 'top 5 + Otros');
+  const svg = renderSense(stats, 'light');
+  assertCleanSvg(svg);
+  assert.match(svg, />Common Workflow Lan…</);
+  assert.doesNotMatch(svg, />Common Workflow Language</);
+  assert.match(svg, />Jupyter Notebook</, 'los que caben no se tocan');
+  const H = Number(svg.match(/height="(\d+)"/)[1]);
+  for (const [, y] of svg.matchAll(/<text x="[\d.]+" y="([\d.]+)"/g)) assert.ok(Number(y) <= H - 16, `texto en y=${y} fuera del panel`);
+});
+
+test('las descripciones accesibles usan singular cuando toca', () => {
+  const one = Array(369).fill(0);
+  one[368] = 1;
+  const stats = statsFor(one, [repo('a', [['Swift', 10]])]);
+  for (const svg of [renderSense(stats, 'dark'), renderCalendar(stats, 'dark')]) {
+    assert.doesNotMatch(svg, /\b1 días\b|\b1 repos\b/);
+  }
+  assert.match(renderSense(stats, 'dark'), /1 día activo, racha más larga de 1 día, 1 repo público/);
+  assert.match(renderSense(stats, 'dark'), />de 369 días</);
 });
 
 // ——— Hallazgos de la verificación adversarial ———

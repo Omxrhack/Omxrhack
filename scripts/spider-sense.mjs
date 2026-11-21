@@ -1,4 +1,4 @@
-// Spider-Sense: genera la tabla de contribuciones y el panel de stats del perfil.
+// Genera la tabla de contribuciones y el panel de actividad del perfil.
 //
 //   GITHUB_TOKEN=... GH_USER=Omxrhack node scripts/spider-sense.mjs
 //   node scripts/spider-sense.mjs --fixture raw.json      (sin red, para probar el diseño)
