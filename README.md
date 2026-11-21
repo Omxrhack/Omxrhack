@@ -41,7 +41,7 @@ Navegador ligero para macOS y Windows escrito en Rust. Reparte las pestañas en 
 <tr>
 <td width="50%" valign="top">
 
-### Easy Order
+### easy order
 Publicada · [App Store](https://apps.apple.com/us/app/easy-order/id6767426566) · [Google Play](https://play.google.com/store/apps/details?id=com.easyorder.easyorderv1)
 
 Gestión para restaurantes. La comanda pasa del teléfono del mesero a la pantalla de cocina al instante, el inventario se descuenta por receta y el corte de caja se cierra con el turno. Multi-tenant, con cuatro roles.
